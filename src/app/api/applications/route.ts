@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         .orderBy(desc(candidates.createdAt))
         .limit(limit);
     }
-    const filtered = status ? rows.filter((r) => r.status === status) : rows;
+    const filtered = status ? rows.filter((r: typeof rows[0]) => r.status === status) : rows;
     return NextResponse.json({ items: filtered });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "DB error" }, { status: 500 });

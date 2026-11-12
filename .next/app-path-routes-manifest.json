@@ -1,0 +1,11 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/admin/page": "/admin",
+  "/api/applications/[id]/route": "/api/applications/[id]",
+  "/api/applications/route": "/api/applications",
+  "/api/health/route": "/api/health",
+  "/api/settings/route": "/api/settings",
+  "/api/telegram/test/route": "/api/telegram/test",
+  "/page": "/"
+}

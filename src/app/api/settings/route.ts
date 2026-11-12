@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   }
   try {
     const rows = await db.select().from(appSettings);
-    const map = Object.fromEntries(rows.map((r) => [r.key, r.value ?? ""]));
+    const map = Object.fromEntries(rows.map((r: typeof rows[0]) => [r.key, r.value ?? ""]));
     let botToken = "";
     let chatId = "";
     if (map["telegram"]) {

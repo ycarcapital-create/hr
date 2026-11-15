@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Candidate = {
@@ -133,13 +134,11 @@ export default function AdminPage() {
   }, [headers, q, statusFilter]);
 
   useEffect(() => {
-    loadSettings().then(() => load());
+    queueMicrotask(() => {
+      void loadSettings().then(() => load());
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (selected) setNotesDraft(selected.notes ?? "");
-  }, [selected]);
 
   function login() {
     localStorage.setItem("asimo_admin_pwd", pwdInput);
@@ -283,9 +282,9 @@ export default function AdminPage() {
           <button onClick={login} className="mt-3 w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700">
             Войти →
           </button>
-          <a href="/" className="mt-4 block text-center text-xs text-slate-400 underline">
+          <Link href="/" className="mt-4 block text-center text-xs text-slate-400 underline">
             ← Вернуться к анкете
-          </a>
+          </Link>
         </div>
       </main>
     );
@@ -303,9 +302,9 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <a href="/" className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:bg-white/10">
+            <Link href="/" className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:bg-white/10">
               Анкета →
-            </a>
+            </Link>
             <button
               onClick={() => {
                 localStorage.removeItem("asimo_admin_pwd");
@@ -455,7 +454,10 @@ export default function AdminPage() {
                   {items.map((c) => (
                     <tr
                       key={c.id}
-                      onClick={() => setSelected(c)}
+                      onClick={() => {
+                        setSelected(c);
+                        setNotesDraft(c.notes ?? "");
+                      }}
                       className="cursor-pointer border-b border-slate-50 transition last:border-0 hover:bg-blue-50/50"
                     >
                       <td className="px-4 py-3">

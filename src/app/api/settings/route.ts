@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { getDbForApi } from "@/lib/db-api";
+import { ensureDatabaseReady } from "@/db/migrate";
 import { appSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -25,6 +26,15 @@ export async function GET(req: NextRequest) {
   if (!checkAdmin(req)) {
     return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
   }
+  const dbOrResponse = getDbForApi();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
+
+  const migrated = await ensureDatabaseReady();
+  if (!migrated.ok) {
+    return NextResponse.json({ error: migrated.error }, { status: 500 });
+  }
+
   try {
     const rows = await db.select().from(appSettings);
     const map = Object.fromEntries(rows.map((r: typeof rows[0]) => [r.key, r.value ?? ""]));
@@ -62,6 +72,15 @@ export async function POST(req: NextRequest) {
   if (!checkAdmin(req)) {
     return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
   }
+  const dbOrResponse = getDbForApi();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
+
+  const migrated = await ensureDatabaseReady();
+  if (!migrated.ok) {
+    return NextResponse.json({ error: migrated.error }, { status: 500 });
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as {
       botToken?: string;

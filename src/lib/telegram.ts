@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -14,6 +14,15 @@ export async function getTelegramConfig(): Promise<{
   let botToken = env("TELEGRAM_BOT_TOKEN");
   let chatId = env("TELEGRAM_CHAT_ID");
   let fromDb = false;
+
+  const db = getDb();
+  if (!db) {
+    return {
+      botToken,
+      chatId,
+      source: botToken && chatId ? "env" : "none",
+    };
+  }
 
   try {
     const rows = await db

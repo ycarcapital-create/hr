@@ -1,0 +1,353 @@
+{
+  "id": "63e969e9-75b0-43a4-9724-1735bfe34fa4",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.app_settings": {
+      "name": "app_settings",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.candidates": {
+      "name": "candidates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "fio": {
+          "name": "fio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "age": {
+          "name": "age",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact": {
+          "name": "contact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "call_time": {
+          "name": "call_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "education": {
+          "name": "education",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_job": {
+          "name": "last_job",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_exp": {
+          "name": "total_exp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sales_exp": {
+          "name": "sales_exp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "it_exp": {
+          "name": "it_exp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "crm": {
+          "name": "crm",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "b2b_exp": {
+          "name": "b2b_exp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cold_calls": {
+          "name": "cold_calls",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calls_per_day": {
+          "name": "calls_per_day",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "products": {
+          "name": "products",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plan": {
+          "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deal_size": {
+          "name": "deal_size",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejections": {
+          "name": "rejections",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price_objection": {
+          "name": "price_objection",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comm_score": {
+          "name": "comm_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_comfort": {
+          "name": "phone_comfort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calls_ready": {
+          "name": "calls_ready",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "motivation": {
+          "name": "motivation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "success_case": {
+          "name": "success_case",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "difficult_client": {
+          "name": "difficult_client",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remote_ready": {
+          "name": "remote_ready",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device": {
+          "name": "device",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "internet": {
+          "name": "internet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salary_ok": {
+          "name": "salary_ok",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "learning": {
+          "name": "learning",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salary_expect": {
+          "name": "salary_expect",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "why_it": {
+          "name": "why_it",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "about_company": {
+          "name": "about_company",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "questions": {
+          "name": "questions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "score_label": {
+          "name": "score_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'—'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telegram_sent": {
+          "name": "telegram_sent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "telegram_message_id": {
+          "name": "telegram_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw": {
+          "name": "raw",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

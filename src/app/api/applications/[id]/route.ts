@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { getDbForApi } from "@/lib/db-api";
+import { ensureDatabaseReady } from "@/db/migrate";
 import { candidates } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -11,11 +12,24 @@ function checkAdmin(req: NextRequest): boolean {
   return (req.headers.get("x-admin-password") ?? "") === required;
 }
 
+async function resolveDb() {
+  const dbOrResponse = getDbForApi();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const migrated = await ensureDatabaseReady();
+  if (!migrated.ok) {
+    return NextResponse.json({ error: migrated.error }, { status: 500 });
+  }
+  return dbOrResponse;
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!checkAdmin(req)) {
     return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
   }
   const { id } = await params;
+  const dbOrResponse = await resolveDb();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
   try {
     const body = (await req.json().catch(() => ({}))) as { status?: string; notes?: string };
     const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -33,6 +47,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
   }
   const { id } = await params;
+  const dbOrResponse = await resolveDb();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
   try {
     await db.delete(candidates).where(eq(candidates.id, id));
     return NextResponse.json({ ok: true });
@@ -47,6 +64,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
   }
   const { id } = await params;
+  const dbOrResponse = await resolveDb();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
   try {
     const { getTelegramConfig, buildTelegramMessage, sendToTelegram } = await import("@/lib/telegram");
     const rows = await db.select().from(candidates).where(eq(candidates.id, id)).limit(1);

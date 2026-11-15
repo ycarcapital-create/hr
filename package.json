@@ -6,7 +6,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.json",
+    "db:migrate": "drizzle-kit migrate --config=drizzle.config.json"
   },
   "dependencies": {
     "dotenv": "17.3.1",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
+import { getDbForApi } from "@/lib/db-api";
+import { ensureDatabaseReady } from "@/db/migrate";
 import { candidates } from "@/db/schema";
 import { desc, eq, ilike, or } from "drizzle-orm";
 import { scoreCandidate } from "@/lib/scoring";
@@ -22,6 +23,15 @@ export async function GET(req: NextRequest) {
   if (!checkAdmin(req)) {
     return NextResponse.json({ error: "Неверный пароль администратора" }, { status: 401 });
   }
+  const dbOrResponse = getDbForApi();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
+
+  const migrated = await ensureDatabaseReady();
+  if (!migrated.ok) {
+    return NextResponse.json({ error: migrated.error }, { status: 500 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q")?.trim() ?? "";
@@ -58,6 +68,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const dbOrResponse = getDbForApi();
+  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  const db = dbOrResponse;
+
+  const migrated = await ensureDatabaseReady();
+  if (!migrated.ok) {
+    return NextResponse.json({ error: migrated.error }, { status: 500 });
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as Record<string, any>;
 

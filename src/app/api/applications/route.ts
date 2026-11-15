@@ -5,6 +5,7 @@ import { candidates } from "@/db/schema";
 import { desc, eq, ilike, or } from "drizzle-orm";
 import { scoreCandidate } from "@/lib/scoring";
 import { buildTelegramMessage, getTelegramConfig, sendToTelegram } from "@/lib/telegram";
+import { adminGuardResponse, checkAdminRequest } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +13,9 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
 }
 
-function checkAdmin(req: NextRequest): boolean {
-  const required = (process.env.ADMIN_PASSWORD ?? "").trim();
-  if (!required) return true;
-  const got = req.headers.get("x-admin-password") ?? "";
-  return got === required;
-}
-
 export async function GET(req: NextRequest) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль администратора" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
   const dbOrResponse = getDbForApi();
   if (dbOrResponse instanceof NextResponse) return dbOrResponse;
   const db = dbOrResponse;
@@ -191,7 +184,8 @@ export async function POST(req: NextRequest) {
     try {
       const cfg = await getTelegramConfig();
       if (!cfg.botToken || !cfg.chatId) {
-        telegramError = "Telegram не настроен: задайте токен бота и chat_id в админке (/admin)";
+        telegramError =
+          "Telegram не настроен: задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID в Vercel (Redeploy) или в /admin";
       } else {
         const html = buildTelegramMessage(payload, score, label);
         const res = await sendToTelegram(cfg.botToken, cfg.chatId, html);

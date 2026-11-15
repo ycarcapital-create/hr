@@ -3,18 +3,16 @@ import { getDbForApi } from "@/lib/db-api";
 import { ensureDatabaseReady } from "@/db/migrate";
 import { appSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import {
+  adminGuardResponse,
+  checkAdminRequest,
+  isAdminPasswordConfigured,
+  isProductionDeploy,
+} from "@/lib/admin-auth";
+import { readEnv } from "@/lib/env";
+import { getTelegramConfig } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
-
-function checkAdmin(req: NextRequest): boolean {
-  const required = (process.env.ADMIN_PASSWORD ?? "").trim();
-  if (!required) return true;
-  const got =
-    req.headers.get("x-admin-password") ??
-    new URL(req.url).searchParams.get("pwd") ??
-    "";
-  return got === required;
-}
 
 function mask(token: string): string {
   if (!token) return "";
@@ -23,55 +21,46 @@ function mask(token: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
+
+  const cfg = await getTelegramConfig();
+
+  const payload = {
+    botTokenSet: Boolean(cfg.botToken),
+    botTokenMasked: mask(cfg.botToken),
+    chatId: cfg.chatId,
+    telegramSource: cfg.source,
+    hasDbConfig: cfg.source === "db" || cfg.source === "mixed",
+    hasEnvConfig: Boolean(readEnv("TELEGRAM_BOT_TOKEN", "TELEGRAM_TOKEN") && readEnv("TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_IDS")),
+    adminPasswordSet: isAdminPasswordConfigured(),
+    adminPasswordRequired: isProductionDeploy(),
+  };
+
   const dbOrResponse = getDbForApi();
-  if (dbOrResponse instanceof NextResponse) return dbOrResponse;
+  if (dbOrResponse instanceof NextResponse) {
+    return NextResponse.json(payload);
+  }
   const db = dbOrResponse;
 
   const migrated = await ensureDatabaseReady();
   if (!migrated.ok) {
-    return NextResponse.json({ error: migrated.error }, { status: 500 });
+    return NextResponse.json({ ...payload, warning: migrated.error });
   }
 
   try {
-    const rows = await db.select().from(appSettings);
-    const map = Object.fromEntries(rows.map((r: typeof rows[0]) => [r.key, r.value ?? ""]));
-    let botToken = "";
-    let chatId = "";
-    if (map["telegram"]) {
-      try {
-        const p = JSON.parse(map["telegram"]);
-        botToken = p.botToken ?? "";
-        chatId = p.chatId ?? "";
-      } catch {
-        // ignore
-      }
-    }
-    if (map["telegram_bot_token"]) botToken = map["telegram_bot_token"];
-    if (map["telegram_chat_id"]) chatId = map["telegram_chat_id"];
-
-    const envToken = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
-    const envChat = (process.env.TELEGRAM_CHAT_ID ?? "").trim();
-
-    return NextResponse.json({
-      botTokenSet: Boolean(botToken || envToken),
-      botTokenMasked: mask(botToken || envToken),
-      chatId: chatId || envChat,
-      hasDbConfig: Boolean(botToken || chatId),
-      hasEnvConfig: Boolean(envToken && envChat),
-      adminPasswordSet: Boolean((process.env.ADMIN_PASSWORD ?? "").trim()),
-    });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "DB error" }, { status: 500 });
+    await db.select().from(appSettings).limit(1);
+    return NextResponse.json(payload);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "DB error";
+    return NextResponse.json({ ...payload, warning: message });
   }
 }
 
 export async function POST(req: NextRequest) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
+
   const dbOrResponse = getDbForApi();
   if (dbOrResponse instanceof NextResponse) return dbOrResponse;
   const db = dbOrResponse;
@@ -86,22 +75,40 @@ export async function POST(req: NextRequest) {
       botToken?: string;
       chatId?: string;
     };
-    const botToken = (body.botToken ?? "").trim();
-    const chatId = (body.chatId ?? "").trim();
+    let botToken = (body.botToken ?? "").trim();
+    let chatId = (body.chatId ?? "").trim();
 
-    const value = JSON.stringify({ botToken, chatId });
     const existing = await db
       .select()
       .from(appSettings)
       .where(eq(appSettings.key, "telegram"))
       .limit(1);
+
+    if (existing[0]?.value) {
+      try {
+        const parsed = JSON.parse(existing[0].value) as { botToken?: string; chatId?: string };
+        if (!botToken) botToken = parsed.botToken?.trim() ?? "";
+        if (!chatId) chatId = parsed.chatId?.trim() ?? "";
+      } catch {
+        // ignore
+      }
+    }
+
+    const envToken = readEnv("TELEGRAM_BOT_TOKEN", "TELEGRAM_TOKEN");
+    const envChat = readEnv("TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_IDS");
+    if (!botToken) botToken = envToken;
+    if (!chatId) chatId = envChat;
+
+    const value = JSON.stringify({ botToken, chatId });
+
     if (existing.length === 0) {
       await db.insert(appSettings).values({ key: "telegram", value });
     } else {
       await db.update(appSettings).set({ value, updatedAt: new Date() }).where(eq(appSettings.key, "telegram"));
     }
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "DB error" }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "DB error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

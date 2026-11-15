@@ -1,75 +1,67 @@
 import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { readEnv } from "@/lib/env";
 
-function env(name: string): string {
-  return (process.env[name] ?? "").trim();
-}
+const TOKEN_ENV_KEYS = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_TOKEN", "BOT_TOKEN"] as const;
+const CHAT_ENV_KEYS = ["TELEGRAM_CHAT_ID", "TELEGRAM_CHAT_IDS", "CHAT_ID"] as const;
 
 export async function getTelegramConfig(): Promise<{
   botToken: string;
   chatId: string;
-  source: "db" | "env" | "none";
+  source: "db" | "env" | "mixed" | "none";
 }> {
-  let botToken = env("TELEGRAM_BOT_TOKEN");
-  let chatId = env("TELEGRAM_CHAT_ID");
-  let fromDb = false;
+  const envToken = readEnv(...TOKEN_ENV_KEYS);
+  const envChat = readEnv(...CHAT_ENV_KEYS);
+
+  let dbToken = "";
+  let dbChat = "";
 
   const db = getDb();
-  if (!db) {
-    return {
-      botToken,
-      chatId,
-      source: botToken && chatId ? "env" : "none",
-    };
-  }
-
-  try {
-    const rows = await db
-      .select()
-      .from(appSettings)
-      .where(eq(appSettings.key, "telegram"));
-    const raw = rows[0]?.value;
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as {
-          botToken?: string;
-          chatId?: string;
-        };
-        if (parsed.botToken?.trim()) {
-          botToken = parsed.botToken.trim();
-          fromDb = true;
+  if (db) {
+    try {
+      const rows = await db
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.key, "telegram"));
+      const raw = rows[0]?.value;
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as { botToken?: string; chatId?: string };
+          dbToken = parsed.botToken?.trim() ?? "";
+          dbChat = parsed.chatId?.trim() ?? "";
+        } catch {
+          // ignore
         }
-        if (parsed.chatId?.trim()) {
-          chatId = parsed.chatId.trim();
-          fromDb = true;
-        }
-      } catch {
-        // ignore
       }
+      const [tRow, cRow] = await Promise.all([
+        db.select().from(appSettings).where(eq(appSettings.key, "telegram_bot_token")),
+        db.select().from(appSettings).where(eq(appSettings.key, "telegram_chat_id")),
+      ]);
+      if (tRow[0]?.value?.trim()) dbToken = tRow[0].value.trim();
+      if (cRow[0]?.value?.trim()) dbChat = cRow[0].value.trim();
+    } catch {
+      // db may not be migrated yet
     }
-    // legacy separate keys
-    const [tRow, cRow] = await Promise.all([
-      db.select().from(appSettings).where(eq(appSettings.key, "telegram_bot_token")),
-      db.select().from(appSettings).where(eq(appSettings.key, "telegram_chat_id")),
-    ]);
-    if (tRow[0]?.value?.trim()) {
-      botToken = tRow[0].value.trim();
-      fromDb = true;
-    }
-    if (cRow[0]?.value?.trim()) {
-      chatId = cRow[0].value.trim();
-      fromDb = true;
-    }
-  } catch {
-    // db may not be migrated yet — fallback to env
   }
 
-  return {
-    botToken,
-    chatId,
-    source: botToken && chatId ? (fromDb ? "db" : "env") : "none",
-  };
+  // На Vercel приоритет у env — в БД часто остаётся пустой токен после «Сохранить» без повторного ввода.
+  const botToken = envToken || dbToken;
+  const chatId = envChat || dbChat;
+
+  let source: "db" | "env" | "mixed" | "none" = "none";
+  if (botToken && chatId) {
+    const tokenFromEnv = Boolean(envToken);
+    const chatFromEnv = Boolean(envChat);
+    const tokenFromDb = Boolean(dbToken);
+    const chatFromDb = Boolean(dbChat);
+    if (tokenFromEnv && chatFromEnv && !tokenFromDb && !chatFromDb) source = "env";
+    else if (!tokenFromEnv && !chatFromEnv && tokenFromDb && chatFromDb) source = "db";
+    else if (tokenFromEnv || chatFromEnv) source = "mixed";
+    else source = "db";
+  }
+
+  return { botToken, chatId, source };
 }
 
 export function escapeHtml(s: unknown): string {
@@ -140,14 +132,63 @@ export function buildTelegramMessage(p: Record<string, any>, score: number, labe
   lines.push(row("Вопросы", p.questions));
 
   let text = lines.join("").replace(/\n{3,}/g, "\n\n");
-  // Telegram limit 4096 — обрезаем аккуратно
   if (text.length > 3900) {
     text = text.slice(0, 3900) + "\n\n… <i>(обрезано, полный текст в админке)</i>";
   }
   return text;
 }
 
-export async function sendToTelegram(botToken: string, chatId: string, html: string): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+function normalizeChatId(target: string): string | number {
+  const t = target.trim();
+  if (/^-?\d+$/.test(t)) return Number(t);
+  return t;
+}
+
+async function sendMessageOnce(
+  botToken: string,
+  target: string,
+  text: string,
+  parseMode?: "HTML"
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const chatId = normalizeChatId(target);
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true,
+  };
+  if (parseMode) body.parse_mode = parseMode;
+
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string; result?: { message_id?: number } };
+  if (!res.ok || !data?.ok) {
+    return {
+      ok: false,
+      error: data?.description ?? `Telegram HTTP ${res.status}`,
+    };
+  }
+  return { ok: true, messageId: String(data?.result?.message_id ?? "") };
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+export async function sendToTelegram(
+  botToken: string,
+  chatId: string,
+  html: string
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const targets = chatId
     .split(/[,\s;]+/)
     .map((s) => s.trim())
@@ -157,25 +198,17 @@ export async function sendToTelegram(botToken: string, chatId: string, html: str
   if (targets.length === 0) return { ok: false, error: "Не задан TELEGRAM_CHAT_ID" };
 
   let lastId: string | undefined;
+  let lastError: string | undefined;
+
   for (const target of targets) {
-    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: target,
-        text: html,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
-    });
-    const data = (await res.json().catch(() => ({}))) as any;
-    if (!res.ok || !data?.ok) {
-      return {
-        ok: false,
-        error: data?.description ?? `Telegram error ${res.status}`,
-      };
+    let attempt = await sendMessageOnce(botToken, target, html, "HTML");
+    if (!attempt.ok && attempt.error && /parse entities|can't find end tag/i.test(attempt.error)) {
+      attempt = await sendMessageOnce(botToken, target, htmlToPlainText(html));
     }
-    lastId = String(data?.result?.message_id ?? "");
+    if (!attempt.ok) {
+      return { ok: false, error: attempt.error ?? lastError };
+    }
+    lastId = attempt.messageId;
   }
   return { ok: true, messageId: lastId };
 }

@@ -3,14 +3,9 @@ import { getDbForApi } from "@/lib/db-api";
 import { ensureDatabaseReady } from "@/db/migrate";
 import { candidates } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { adminGuardResponse, checkAdminRequest } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
-
-function checkAdmin(req: NextRequest): boolean {
-  const required = (process.env.ADMIN_PASSWORD ?? "").trim();
-  if (!required) return true;
-  return (req.headers.get("x-admin-password") ?? "") === required;
-}
 
 async function resolveDb() {
   const dbOrResponse = getDbForApi();
@@ -23,9 +18,8 @@ async function resolveDb() {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
   const { id } = await params;
   const dbOrResponse = await resolveDb();
   if (dbOrResponse instanceof NextResponse) return dbOrResponse;
@@ -43,9 +37,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
   const { id } = await params;
   const dbOrResponse = await resolveDb();
   if (dbOrResponse instanceof NextResponse) return dbOrResponse;
@@ -60,9 +53,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // resend to telegram
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
   const { id } = await params;
   const dbOrResponse = await resolveDb();
   if (dbOrResponse instanceof NextResponse) return dbOrResponse;

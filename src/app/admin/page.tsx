@@ -90,6 +90,29 @@ export default function AdminPage() {
     return h;
   }, [pwd]);
 
+  const applyAdminGate = useCallback((data: { adminPasswordSet?: boolean; adminPasswordRequired?: boolean }, ok: boolean, status: number, error?: string) => {
+    if (status === 503) {
+      setMsg(error ?? "Админка недоступна");
+      setNeedPwd(true);
+      setAuthed(false);
+      return;
+    }
+    if (status === 401) {
+      setNeedPwd(true);
+      setAuthed(false);
+      return;
+    }
+    if (!ok) return;
+    const mustAuth = Boolean(data.adminPasswordRequired && data.adminPasswordSet);
+    if (mustAuth && !pwd) {
+      setNeedPwd(true);
+      setAuthed(false);
+      return;
+    }
+    setNeedPwd(false);
+    setAuthed(true);
+  }, [pwd]);
+
   const loadSettings = useCallback(async () => {
     try {
       const res = await fetch("/api/settings", { headers });
@@ -97,16 +120,12 @@ export default function AdminPage() {
       if (res.ok) {
         setTgInfo(data);
         if (data.chatId) setChatId(data.chatId);
-        setNeedPwd(false);
-        setAuthed(true);
-      } else if (res.status === 401) {
-        setNeedPwd(true);
-        setAuthed(false);
       }
+      applyAdminGate(data, res.ok, res.status, data?.error);
     } catch {
       // ignore
     }
-  }, [headers]);
+  }, [headers, applyAdminGate]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +136,17 @@ export default function AdminPage() {
       if (statusFilter) params.set("status", statusFilter);
       const res = await fetch(`/api/applications?${params.toString()}`, { headers });
       const data = await res.json();
+      if (res.status === 503) {
+        setMsg(data?.error ?? "Задайте ADMIN_PASSWORD в Vercel");
+        setNeedPwd(true);
+        setAuthed(false);
+        return;
+      }
+      if (res.status === 401) {
+        setNeedPwd(true);
+        setAuthed(false);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error ?? "Ошибка загрузки");
       setItems(data.items ?? []);
       setNeedPwd(false);
@@ -270,7 +300,14 @@ export default function AdminPage() {
         <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black text-white">A</div>
           <h1 className="mt-4 text-center text-xl font-extrabold">HR-панель ASIMO.BY</h1>
-          <p className="mt-1 text-center text-sm text-slate-500">Введите пароль администратора (ADMIN_PASSWORD)</p>
+          <p className="mt-1 text-center text-sm text-slate-500">
+            Введите пароль из переменной <b>ADMIN_PASSWORD</b> в Vercel (обязателен на production)
+          </p>
+          {msg && (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900">
+              {msg}
+            </p>
+          )}
           <input
             type="password"
             value={pwdInput}

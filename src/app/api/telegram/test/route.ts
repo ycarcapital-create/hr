@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTelegramConfig, sendToTelegram } from "@/lib/telegram";
+import { adminGuardResponse, checkAdminRequest } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
-function checkAdmin(req: NextRequest): boolean {
-  const required = (process.env.ADMIN_PASSWORD ?? "").trim();
-  if (!required) return true;
-  return (req.headers.get("x-admin-password") ?? "") === required;
-}
-
 export async function POST(req: NextRequest) {
-  if (!checkAdmin(req)) {
-    return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
-  }
+  const admin = checkAdminRequest(req);
+  if (!admin.ok) return adminGuardResponse(admin);
+
   try {
     const body = (await req.json().catch(() => ({}))) as {
       botToken?: string;
@@ -27,7 +22,10 @@ export async function POST(req: NextRequest) {
     }
     if (!botToken || !chatId) {
       return NextResponse.json(
-        { error: "Укажите токен бота и chat_id" },
+        {
+          error:
+            "Укажите TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID в Vercel или сохраните в админке. Убедитесь, что вы нажали /start у бота в личке или добавили бота в группу.",
+        },
         { status: 400 }
       );
     }
@@ -38,7 +36,8 @@ export async function POST(req: NextRequest) {
     const res = await sendToTelegram(botToken, chatId, html);
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
     return NextResponse.json({ ok: true, messageId: res.messageId });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Error" }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "Error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
